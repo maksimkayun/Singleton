@@ -4,7 +4,7 @@ public class CacheProcessor : IDisposable
 {
     private object lockMembersObject { get; set; }
     private static CacheProcessor _instance { get; set; } = new();
-    private Dictionary<string, object> _members { get; set; }
+    private Dictionary<string, CacheObject> _members { get; set; }
     private CancellationTokenSource? cancelTokenSource;
     private CancellationToken cancelToken;
     
@@ -12,10 +12,10 @@ public class CacheProcessor : IDisposable
 
     private CacheProcessor()
     {
-        _members = new Dictionary<string, object>();
+        _members = new Dictionary<string, CacheObject>();
         cancelTokenSource = new CancellationTokenSource();
         cancelToken = cancelTokenSource.Token;
-        lockMembersObject = new();
+        lockMembersObject = new object();
 
         defaultTimeoutSec = 10;
 
@@ -29,7 +29,7 @@ public class CacheProcessor : IDisposable
         lock (lockMembersObject)
         {
             var mustRemoveKeys = _members
-                .Where(e => (e.Value as CacheObject)?.ExpiresTo < DateTime.Now)
+                .Where(e => e.Value?.ExpiresTo < DateTime.Now)
                 .Select(e => e.Key);
             foreach (var key in mustRemoveKeys)
             {
@@ -44,11 +44,11 @@ public class CacheProcessor : IDisposable
     public bool TryGetValueFromCache<T>(string key, out T? result)
     {
         result = default;
-        if (_members.TryGetValue(key, out object? res))
+        if (_members.TryGetValue(key, out CacheObject? res))
         {
-            if ((res as CacheObject)?.ExpiresTo >= DateTime.Now)
+            if (res.ExpiresTo >= DateTime.Now)
             {
-                result = (T)(res as CacheObject)?.Value;
+                result = (T) res?.Value!;
             }
             else
             {
@@ -62,7 +62,7 @@ public class CacheProcessor : IDisposable
         return result != null;
     }
 
-    public bool SaveDataCache<T>(string key, T obj)
+    public bool SaveDataCache(string key, object? obj)
     {
         var result = false;
         if (obj != null)
